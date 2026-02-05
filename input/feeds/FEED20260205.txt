@@ -1,0 +1,3 @@
+Test content for file watcher
+Line 2
+Line 3

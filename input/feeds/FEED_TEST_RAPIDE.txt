@@ -1,0 +1,6 @@
+Ligne 1 de test rapide
+Ligne 2 de test rapide  
+Ligne 3 de test rapide
+
+Ligne 4 après vide
+Ligne 5 finale

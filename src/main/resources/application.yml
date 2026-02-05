@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: ChatbotNaSoft
+  
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/chatbot
+      database: chatbot
+      
+# Configuration pour le développement
+server:
+  port: 8080
+
+# Configuration Gemini LLM
+gemini:
+  api-key: AIzaSyBXeZm_O0u8rFBbN_BRTWuPbVZgMWZvpUY
+  model: gemini-2.5-flash
+  base-url: https://generativelanguage.googleapis.com/v1beta
+  timeout-seconds: 30
+  max-retries: 3
+  temperature: 0.7
+  max-tokens: 2048
+
+# Configuration de surveillance de fichiers
+file-watcher:
+  # Répertoire à surveiller (créé automatiquement s'il n'existe pas)
+  input-directory: input/feeds
+  # Pattern des fichiers à surveiller (accepte FEED* et FEED_V2*)
+  file-pattern: FEED*.txt
+  # Délai de stabilisation en secondes (pour les tests)
+  stabilization-delay-minutes: 0.083 # 5 secondes = 5/60 minutes
+  # Intervalle de vérification en secondes
+  check-interval-seconds: 2
+  # Taille maximale d'un fichier en MB (optionnel)
+  max-file-size-mb: 100
+
+# Logging
+logging:
+  level:
+    org.springframework.data.mongodb: DEBUG
+    com.example.chatbotnasoft: DEBUG
+    com.example.chatbotnasoft.service.FileWatcherService: INFO
+    com.example.chatbotnasoft.service.FileStabilizationService: INFO
