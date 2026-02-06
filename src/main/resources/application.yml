@@ -13,8 +13,8 @@ server:
 
 # Configuration Gemini LLM
 gemini:
-  api-key: AIzaSyAHg3M4DYEtbld39s9XVCSA-voPXzqm6k0
-  model: gemini-2.5-flash
+  api-key: AIzaSyBUyAnCMdbwmv_8GIyt49LJNYy0c2w_YIs
+  model: gemini-3-flash-preview
   base-url: https://generativelanguage.googleapis.com/v1beta
   timeout-seconds: 30
   max-retries: 3

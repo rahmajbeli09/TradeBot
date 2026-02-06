@@ -3,9 +3,9 @@ package com.example.chatbotnasoft.dto;
 import java.util.Map;
 
 /**
- * DTO pour représenter une ligne lisible d'un fichier FEED
+ * DTO pour représenter les données résumées d'une ligne FEED
  */
-public class ReadableFeedLine {
+public class ResumeData {
     
     /**
      * Le type de message extrait de la ligne (2ème champ)
@@ -13,10 +13,16 @@ public class ReadableFeedLine {
     private String msgType;
     
     /**
-     * La représentation lisible des champs avec leurs significations
-     * Clé: "Champ X", Valeur: "Signification : Valeur du champ"
+     * Le mapping des significations pour ce msgType
+     * Clé: "Champ i", Valeur: "Signification du champ"
      */
-    private Map<String, String> champsLisibles;
+    private Map<String, String> mapping;
+    
+    /**
+     * Les valeurs brutes de la ligne
+     * Clé: "Champ i", Valeur: "Valeur brute du champ"
+     */
+    private Map<String, String> valeurs;
     
     /**
      * La ligne originale brute pour référence
@@ -33,22 +39,17 @@ public class ReadableFeedLine {
      */
     private String erreur;
     
-    public ReadableFeedLine() {}
+    public ResumeData() {}
     
-    public ReadableFeedLine(String msgType, Map<String, String> champsLisibles) {
+    public ResumeData(String msgType, Map<String, String> mapping, Map<String, String> valeurs, String ligneOriginale) {
         this.msgType = msgType;
-        this.champsLisibles = champsLisibles;
-        this.mappingTrouve = true;
-    }
-    
-    public ReadableFeedLine(String msgType, Map<String, String> champsLisibles, String ligneOriginale) {
-        this.msgType = msgType;
-        this.champsLisibles = champsLisibles;
+        this.mapping = mapping;
+        this.valeurs = valeurs;
         this.ligneOriginale = ligneOriginale;
         this.mappingTrouve = true;
     }
     
-    public ReadableFeedLine(String msgType, String ligneOriginale, String erreur) {
+    public ResumeData(String msgType, String ligneOriginale, String erreur) {
         this.msgType = msgType;
         this.ligneOriginale = ligneOriginale;
         this.erreur = erreur;
@@ -64,12 +65,20 @@ public class ReadableFeedLine {
         this.msgType = msgType;
     }
     
-    public Map<String, String> getChampsLisibles() {
-        return champsLisibles;
+    public Map<String, String> getMapping() {
+        return mapping;
     }
     
-    public void setChampsLisibles(Map<String, String> champsLisibles) {
-        this.champsLisibles = champsLisibles;
+    public void setMapping(Map<String, String> mapping) {
+        this.mapping = mapping;
+    }
+    
+    public Map<String, String> getValeurs() {
+        return valeurs;
+    }
+    
+    public void setValeurs(Map<String, String> valeurs) {
+        this.valeurs = valeurs;
     }
     
     public String getLigneOriginale() {
@@ -80,7 +89,7 @@ public class ReadableFeedLine {
         this.ligneOriginale = ligneOriginale;
     }
     
-    public boolean hasMapping() {
+    public boolean isMappingTrouve() {
         return mappingTrouve;
     }
     
@@ -98,9 +107,10 @@ public class ReadableFeedLine {
     
     @Override
     public String toString() {
-        return "ReadableFeedLine{" +
+        return "ResumeData{" +
                 "msgType='" + msgType + '\'' +
-                ", champsLisibles=" + champsLisibles +
+                ", mapping=" + mapping +
+                ", valeurs=" + valeurs +
                 ", mappingTrouve=" + mappingTrouve +
                 '}';
     }
