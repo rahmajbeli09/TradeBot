@@ -1,0 +1,186 @@
+# ChatbotNaSoft - Documentation Technique
+
+## 📋 Vue d'ensemble du projet
+
+ChatbotNaSoft est une solution intelligente de traitement de feeds qui automatise l'analyse, l'anonymisation et la catégorisation des messages par type (msg-type) en utilisant l'intelligence artificielle Gemini de Google.
+
+## 🎯 Objectif principal
+
+Détecter automatiquement les msg-types inconnus dans les fichiers feeds, analyser leur structure avec l'IA Gemini, et stocker les mappings pour un traitement futur sans anonymisation.
+
+## 🏗️ Architecture du système
+
+### Fichiers principaux et leur utilité
+
+#### 1. **Fichiers de configuration**
+- `application.yml` : Configuration centrale (API Gemini, MongoDB, surveillance fichiers)
+- `GeminiProperties.java` : Gestion des propriétés de l'API Gemini
+- `ServiceConfiguration.java` : Configuration des services Spring
+
+#### 2. **Entités et DTO**
+- `Feed.java` : Entité MongoDB pour les feeds connus
+- `FeedMapping.java` : Entité MongoDB pour stocker les mappings LLM
+- `FieldMapping.java` : DTO pour représenter un mapping de champs
+- `LLMAnalysisResult.java` : DTO pour encapsuler les résultats d'analyse
+- `AnonymizedLine.java` : DTO pour les lignes anonymisées
+- `AnonymizationResult.java` : DTO pour les résultats d'anonymisation
+
+#### 3. **Services métier**
+- `FileWatcherService.java` : Surveillance automatique du répertoire input/feeds
+- `FileStabilizationService.java` : Stabilisation des fichiers avant traitement
+- `FileReadingService.java` : Lecture streaming des fichiers
+- `FeedParsingService.java` : Parsing et regroupement par msg-type
+- `FeedDetectionService.java` : Détection des msg-types connus/inconnus
+- `AnonymizationService.java` : Anonymisation des champs sensibles
+- `LLMService.java` : Service d'analyse avec Gemini API
+- `FeedMappingService.java` : Gestion des mappings en base de données
+- `FeedProcessingService.java` : Orchestrateur principal du pipeline
+
+#### 4. **Repositories**
+- `FeedRepository.java` : Accès aux données des feeds
+- `FeedMappingRepository.java` : Accès aux mappings LLM
+
+#### 5. **Controllers REST**
+- `LLMController.java` : API pour l'analyse LLM manuelle
+- `AnonymizationController.java` : API pour l'anonymisation
+- `FeedMappingController.java` : API pour la gestion des mappings
+
+## 🔄 Procédure complète de traitement
+
+### Étape 1 : Détection et stabilisation des fichiers
+```
+Fichier déposé dans input/feeds
+       ↓
+FileWatcherService détecte le nouveau fichier
+       ↓
+FileStabilizationService attend 5 secondes (configurable)
+       ↓
+Fichier marqué comme "prêt pour traitement"
+```
+
+### Étape 2 : Lecture et parsing
+```
+FileReadingService lit le fichier en streaming
+       ↓
+FeedParsingService extrait le msg-type (2ème champ séparé par ;)
+       ↓
+Regroupement des lignes par msg-type
+       ↓
+Création de ParsedFeedGroup par msg-type
+```
+
+### Étape 3 : Détection et anonymisation
+```
+FeedDetectionService vérifie chaque msg-type dans MongoDB
+       ↓
+Si msg-type INCONNU → AnonymizationService
+       ↓
+Remplacement des champs 3+ par "xxxxx" (conservation 2 premiers champs)
+       ↓
+Si msg-type CONNU → Pas d'anonymisation
+```
+
+### Étape 4 : Analyse LLM intelligente
+```
+LLMService analyse les msg-types inconnus
+       ↓
+Appel à Gemini API avec gemini-2.5-flash (1M tokens)
+       ↓
+Fallback vers gemini-2.0-flash si nécessaire
+       ↓
+Génération de JSON structuré : {"Champ 1": "Signification", ...}
+       ↓
+Création des FieldMapping par msg-type
+```
+
+### Étape 5 : Stockage et déduplication
+```
+FeedMappingService stocke les résultats
+       ↓
+Vérification d'existence par msg-type (évite doublons)
+       ↓
+Stockage dans collection "feed_mapping" MongoDB
+       ↓
+Création automatique des feeds pour msg-types futurs
+```
+
+## 🛠️ Configuration technique
+
+### API Gemini
+- **Modèle principal** : gemini-2.5-flash (1M tokens, 65K output)
+- **Fallback** : gemini-2.0-flash (1M tokens, 8K output)
+- **Temperature** : 0.7 (équilibre créativité/précision)
+- **Max tokens** : 2048
+
+### MongoDB
+- **Base** : chatbot
+- **Collections** : feed (msg-types), feed_mapping (mappings LLM)
+- **Index** : Unique sur msgType pour éviter les doublons
+
+### Surveillance fichiers
+- **Répertoire** : input/feeds (créé automatiquement)
+- **Pattern** : FEED*.txt (accepte FEED_ et FEED_V2*)
+- **Délai** : 5 secondes (configurable)
+
+## 📊 Utilité de chaque composant
+
+### Pipeline de traitement automatisé
+- **FileWatcherService** : Surveillance temps réel des nouveaux fichiers
+- **FeedProcessingService** : Orchestration complète du pipeline
+- **AnonymizationService** : Protection des données sensibles
+
+### Intelligence artificielle
+- **LLMService** : Analyse sémantique des structures de données
+- **FieldMapping** : Structuration automatique des connaissances
+
+### Gestion des données
+- **FeedMappingService** : Persistence et déduplication intelligente
+- **MongoDB** : Stockage NoSQL scalable et performant
+
+### API REST
+- **FeedMappingController** : Interface pour consulter/gérer les mappings
+- **LLMController** : Interface pour analyses manuelles
+- **AnonymizationController** : Interface pour anonymisation à la demande
+
+## 🎯 Avantages du système
+
+### 1. **Automatisation complète**
+- Détection automatique des nouveaux fichiers
+- Traitement sans intervention manuelle
+- Apprentissage continu des nouveaux msg-types
+
+### 2. **Sécurité des données**
+- Anonymisation automatique des données sensibles
+- Conservation structurelle pour l'analyse
+- Traçabilité complète des traitements
+
+### 3. **Intelligence adaptative**
+- Analyse par IA des structures inconnues
+- Création automatique de mappings réutilisables
+- Fallback robuste en cas d'échec
+
+### 4. **Scalabilité**
+- Architecture microservices
+- Base de données NoSQL
+- API REST pour intégration externe
+
+## 🚀 Résultats obtenus
+
+Le système traite avec succès les fichiers feeds et :
+- Détecte automatiquement les msg-types inconnus
+- Génère des mappings structurés via IA
+- Stocke les connaissances pour réutilisation future
+- Fournit une interface REST pour consultation
+
+## 📈 Évolutions possibles
+
+1. **Interface web** pour consultation des mappings
+2. **Tableau de bord** de monitoring des traitements
+3. **Export/Import** des configurations de mappings
+4. **Support multi-formats** au-delà des fichiers texte
+5. **ML avancé** pour prédiction de msg-types
+
+---
+
+*Document généré le 5 février 2026*
+*Projet ChatbotNaSoft - PFE NASOFT*

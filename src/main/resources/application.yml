@@ -4,8 +4,8 @@ spring:
   
   data:
     mongodb:
-      uri: mongodb://localhost:27017/chatbot
-      database: chatbot
+      uri: mongodb://localhost:27017/rahma
+      database: rahma
       
 # Configuration pour le développement
 server:
@@ -13,7 +13,7 @@ server:
 
 # Configuration Gemini LLM
 gemini:
-  api-key: AIzaSyBXeZm_O0u8rFBbN_BRTWuPbVZgMWZvpUY
+  api-key: AIzaSyAHg3M4DYEtbld39s9XVCSA-voPXzqm6k0
   model: gemini-2.5-flash
   base-url: https://generativelanguage.googleapis.com/v1beta
   timeout-seconds: 30

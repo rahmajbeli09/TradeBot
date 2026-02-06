@@ -123,13 +123,24 @@ public class LLMService {
                 - **RÉPONSE OBLIGATOIREMENT EN JSON UNIQUEMENT** - Pas de texte avant ou après
                 - Format exact requis :
                 {
-                  "Champ 1": "Signification",
-                  "Champ 2": "Signification", 
-                  "Champ 3": "Signification",
-                  ...
+                  "Champ 1": "Signification exacte du champ 1",
+                  "Champ 2": "Signification exacte du champ 2", 
+                  "Champ 3": "Signification exacte du champ 3",
+                  "Champ 4": "Signification exacte du champ 4",
+                  "Champ 5": "Signification exacte du champ 5",
+                  "Champ 6": "Signification exacte du champ 6",
+                  "Champ 7": "Signification exacte du champ 7",
+                  "Champ 8": "Signification exacte du champ 8",
+                  "Champ 9": "Signification exacte du champ 9",
+                  "Champ 10": "Signification exacte du champ 10",
+                  "Champ 11": "Signification exacte du champ 11"
                 }
-                - **IMPORTANT** : Ne réponds qu'avec le JSON, sans aucun commentaire ou explication
-                - Le nombre de champs doit correspondre exactement au nombre de champs dans la ligne
+                - **RÈGLES STRICTES** :
+                  1. JSON doit être COMPLÈTEMENT FERMÉ avec }
+                  2. Chaque valeur doit être entre guillemets ""
+                  3. Pas de virgule après le dernier champ
+                  4. Ne réponds QU'avec le JSON - aucun autre texte
+                  5. Compte le nombre exact de champs dans la ligne et génère ce nombre de champs
                 """, anonymizedLine);
     }
 
@@ -143,7 +154,13 @@ public class LLMService {
         } catch (Exception e) {
             log.warn("⚠️ Échec avec gemini-2.5-flash, tentative avec gemini-2.0-flash");
             
-            // Fallback vers gemini-2.0-flash si le modèle principal échoue
+            // Attendre plus longtemps avant le fallback (gestion du quota)
+            try {
+                Thread.sleep(5000); // Attendre 5 secondes
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            
             String fallbackUrl = String.format("%s/models/%s:generateContent?key=%s", 
                     geminiProperties.getBaseUrl(), "gemini-2.0-flash", geminiProperties.getApiKey());
             return makeApiCall(fallbackUrl, prompt);
@@ -229,51 +246,95 @@ public class LLMService {
     private String extractJsonFromResponse(String response) {
         log.debug("🔍 Réponse Gemini brute: {}", response);
         
-        // Chercher le JSON dans la réponse (peut être entouré de texte)
-        int jsonStart = response.indexOf("{");
-        int jsonEnd = response.lastIndexOf("}");
+        // Chercher le JSON dans la réponse (peut être entouré de ```json)
+        String cleanedResponse = response.replaceAll("```json\\s*", "").replaceAll("```\\s*$", "").trim();
+        
+        int jsonStart = cleanedResponse.indexOf("{");
+        int jsonEnd = cleanedResponse.lastIndexOf("}");
         
         if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
-            String jsonStr = response.substring(jsonStart, jsonEnd + 1);
+            String jsonStr = cleanedResponse.substring(jsonStart, jsonEnd + 1);
             log.debug("📋 JSON extrait: {}", jsonStr);
-            return jsonStr;
+            
+            // Vérifier si le JSON est valide
+            if (isValidJson(jsonStr)) {
+                return jsonStr;
+            }
         }
         
         // Si pas de JSON complet, essayer de reconstruire depuis le début
         if (jsonStart != -1) {
-            String partialJson = response.substring(jsonStart);
+            String partialJson = cleanedResponse.substring(jsonStart);
             log.debug("📋 JSON partiel trouvé: {}", partialJson);
             
             // Essayer de compléter le JSON s'il est tronqué
             if (partialJson.contains("\"Champ")) {
-                // Compter les champs ouverts et fermés
-                int openBraces = 0;
-                int closeBraces = 0;
-                boolean inString = false;
-                
-                for (int i = 0; i < partialJson.length(); i++) {
-                    char c = partialJson.charAt(i);
-                    if (c == '"' && (i == 0 || partialJson.charAt(i-1) != '\\')) {
-                        inString = !inString;
-                    }
-                    if (!inString) {
-                        if (c == '{') openBraces++;
-                        else if (c == '}') closeBraces++;
-                    }
+                String reconstructedJson = reconstructJson(partialJson);
+                if (reconstructedJson != null) {
+                    log.debug("📋 JSON reconstruit: {}", reconstructedJson);
+                    return reconstructedJson;
                 }
-                
-                // Ajouter les accolades manquantes
-                while (closeBraces < openBraces) {
-                    partialJson += "}";
-                    closeBraces++;
-                }
-                
-                log.debug("📋 JSON reconstruit: {}", partialJson);
-                return partialJson;
             }
         }
         
-        throw new RuntimeException("Aucun JSON trouvé dans la réponse Gemini");
+        throw new RuntimeException("Aucun JSON valide trouvé dans la réponse Gemini");
+    }
+    
+    private boolean isValidJson(String jsonStr) {
+        try {
+            objectMapper.readTree(jsonStr);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private String reconstructJson(String partialJson) {
+        try {
+            // Compter les champs et fermer proprement
+            String[] lines = partialJson.split("\n");
+            StringBuilder jsonBuilder = new StringBuilder();
+            boolean inObject = false;
+            int fieldCount = 0;
+            
+            for (String line : lines) {
+                line = line.trim();
+                if (line.contains("{")) {
+                    inObject = true;
+                    jsonBuilder.append(line).append("\n");
+                } else if (line.contains("\"Champ") && line.contains(":")) {
+                    // Nettoyer la ligne
+                    if (line.endsWith(",")) {
+                        line = line.substring(0, line.length() - 1);
+                    }
+                    if (!line.endsWith("\"")) {
+                        // Ajouter une valeur par défaut si manquante
+                        line += "\"";
+                    }
+                    jsonBuilder.append(line).append(",\n");
+                    fieldCount++;
+                } else if (line.contains("}") && inObject) {
+                    jsonBuilder.append(line);
+                    inObject = false;
+                }
+            }
+            
+            // Fermer l'objet si toujours ouvert
+            if (inObject) {
+                // Supprimer la dernière virgule si présente
+                String json = jsonBuilder.toString();
+                if (json.endsWith(",\n")) {
+                    json = json.substring(0, json.length() - 2);
+                }
+                json += "\n}";
+                return json;
+            }
+            
+            return jsonBuilder.toString();
+        } catch (Exception e) {
+            log.warn("⚠️ Impossible de reconstruire le JSON: {}", e.getMessage());
+            return null;
+        }
     }
 
     private void logAnalysisSummary(LLMAnalysisResult result) {

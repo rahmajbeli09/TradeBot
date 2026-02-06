@@ -1,0 +1,3 @@
+{
+  "geminiJson": "{\"fields\": [\"Type de message\", \"Code de traitement\", \"Référence de transaction\", \"Montant\", \"Date de la transaction\", \"Identifiant du commerçant\"], \"values\": [\"16\", \"002\", \"ABC123\", \"1500\", \"2026-02-06\", \"M12345\"]}"
+}
