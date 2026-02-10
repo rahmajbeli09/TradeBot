@@ -9,6 +9,7 @@ public class GeminiProperties {
     
     private String apiKey;
     private String model = "gemini-1.5-flash";
+    private String embeddingModel = "text-embedding-004";
     private String baseUrl = "https://generativelanguage.googleapis.com/v1beta";
     private int timeoutSeconds = 30;
     private int maxRetries = 3;

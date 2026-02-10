@@ -1,6 +1,8 @@
 package com.example.chatbotnasoft.controller;
 
+import com.example.chatbotnasoft.entity.FeedMappingHistory;
 import com.example.chatbotnasoft.entity.FeedMapping;
+import com.example.chatbotnasoft.entity.MappingStatus;
 import com.example.chatbotnasoft.service.FeedMappingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,33 @@ public class FeedMappingController {
             log.warn("⚠️ Aucun mapping trouvé pour msg-type '{}'", msgType);
             return ResponseEntity.notFound().build();
         }
+    }
+
+    @GetMapping("/{msgType}/status")
+    public ResponseEntity<?> getMappingStatus(@PathVariable String msgType) {
+        Optional<FeedMapping> mappingOpt = feedMappingService.getMappingByMsgType(msgType);
+        if (mappingOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        FeedMapping mapping = mappingOpt.get();
+        MappingStatus status = mapping.getStatus();
+
+        var response = Map.of(
+                "msgType", mapping.getMsgType(),
+                "version", mapping.getVersion(),
+                "status", status != null ? status.getLabel() : null,
+                "updatedAt", mapping.getUpdatedAt(),
+                "createdAt", mapping.getCreatedAt()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{msgType}/history")
+    public ResponseEntity<List<FeedMappingHistory>> getMappingHistory(@PathVariable String msgType) {
+        List<FeedMappingHistory> history = feedMappingService.getMappingHistory(msgType);
+        return ResponseEntity.ok(history);
     }
     
     /**

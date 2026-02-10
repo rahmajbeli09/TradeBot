@@ -8,7 +8,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties(GeminiProperties.class)
+@EnableConfigurationProperties({GeminiProperties.class, QdrantProperties.class})
 public class LLMConfiguration {
 
     @Bean

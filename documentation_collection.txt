@@ -1,0 +1,176 @@
+# Documentation Technique de la Collection MongoDB "feed"
+
+## 1. Rôle de la Collection "feed" dans le Système
+
+La collection `feed` constitue le pilier fondamental de notre système de trading intelligent, agissant comme **référentiel sémantique central** pour la transformation des données brutes du marché financier en informations structurées et exploitables par l'IA. Elle sert de pont sémantique entre le format natif des données FEED (SBE/RLC) et leur interprétation contextuelle par les agents intelligents du système.
+
+Cette collection remplit plusieurs missions critiques :
+- **Mémorisation sémantique** : Stockage permanent des significations des champs par type de message
+- **Normalisation des données** : Établissement d'un vocabulaire commun pour tous les msg-types
+- **Base d'apprentissage** : Référence pour les futures analyses et générations d'embeddings
+- **Support à l'automatisation** : Fondation pour le traitement autonome des flux de données
+
+## 2. Définition des Artifacts dans le Projet
+
+Dans le contexte de notre système "Agentic AI Assisted Stock Trading", un **artifact** représente une **entité sémantique complète** qui encapsule la connaissance extraite d'un type de message financier spécifique. Chaque artifact est le résultat d'un processus d'intelligence artificielle qui transforme des données brutes et non structurées en une structure de connaissances interprétable par la machine.
+
+Un artifact se compose de trois dimensions fondamentales :
+- **Identifiant unique** : Le `msg_type` qui sert de clé d'entrée dans le système
+- **Structure sémantique** : La cartographie complète des champs et leurs significations
+- **Métadonnées contextuelles** : Informations sur l'origine, la validité et l'utilisation de l'artifact
+
+Les artifacts ne sont pas de simples enregistrements de données, mais plutôt des **objets de connaissance** qui évoluent avec le système et servent de référence pour toutes les opérations ultérieures.
+
+## 3. Structure Logique d'un Document de la Collection "feed"
+
+### 3.1 Structure Conceptuelle
+
+Chaque document dans la collection `feed` représente un artifact sémantique complet avec la structure logique suivante :
+
+```json
+{
+  "identifiant": "msg_type unique",
+  "metadonnees": {
+    "origine": "FEED.txt",
+    "date_creation": "timestamp",
+    "statut": "actif/inactif",
+    "source": "automatique/manuelle"
+  },
+  "structure_semantique": {
+    "nombre_champs": "entier",
+    "mapping_complet": {
+      "position_1": "signification_champ_1",
+      "position_2": "signification_champ_2",
+      "position_n": "signification_champ_n"
+    }
+  },
+  "contexte_utilisation": {
+    "frequence_apparition": "statistique",
+    "derniere_mise_a_jour": "timestamp",
+    "confiance_llm": "score_0_1"
+  }
+}
+```
+
+### 3.2 Champs Principaux
+
+- **`msg_type`** : Identifiant unique du type de message, sert de clé primaire
+- **`mapping`** : Objet JSON associant chaque position de champ à sa signification sémantique
+- **`is_active`** : Booléen indiquant si l'artifact est actuellement utilisé par le système
+- **`created_at`** : Timestamp de création de l'artifact
+- **`updated_at`** : Timestamp de dernière mise à jour
+- **`source`** : Origine de la création (automatique via LLM ou manuelle)
+- **`confidence_score`** : Score de confiance attribué par le LLM lors de la génération
+
+## 4. Cycle de Vie d'un Artifact
+
+### 4.1 Phase de Découverte (Lecture du FEED.txt)
+
+Le cycle de vie d'un artifact commence lors de la surveillance continue du répertoire `input/feeds`. Lorsqu'un nouveau fichier FEED est détecté, le système procède à une analyse syntaxique pour extraire les lignes et identifier les `msg_types` présents. Chaque ligne est tokenisée selon le délimiteur standard (point-virgule) et le deuxième champ est extrait comme identifiant de type de message.
+
+### 4.2 Phase de Classification (Requête MongoDB)
+
+Pour chaque `msg_type` identifié, le système interroge la collection `feed` pour vérifier si un artifact existe déjà. Cette phase de classification permet de distinguer deux flux de traitement :
+- **Msg-type connu** : Application directe du mapping existant
+- **Msg-type inconnu** : Déclenchement du processus d'intelligence artificielle
+
+### 4.3 Phase d'Anonymisation (Préparation IA)
+
+Pour les msg-types inconnus, une anonymisation intelligente est appliquée. Ce processus crucial respecte les principes de privacy by design en :
+- Préservant les trois premiers champs (souvent des métadonnées techniques)
+- Détectant automatiquement les types de données (dates, identifiants, montants)
+- Remplaçant les valeurs sensibles par des placeholders sémantiques
+- Maintenant la structure originale pour l'analyse par l'IA
+
+### 4.4 Phase d'Inférence Sémantique (Appel LLM)
+
+Les données anonymisées sont transmises au modèle de langage (Gemini) qui procède à une analyse sémantique pour :
+- Interpréter la signification de chaque champ basée sur sa position et son type
+- Générer un mapping complet et cohérent
+- Attribuer un score de confiance à l'analyse
+- Fournir des métadonnées contextuelles
+
+### 4.5 Phase de Persistance (Stockage MongoDB)
+
+Le résultat de l'inférence est structuré en un document JSON et persisté dans la collection `feed`. Cette phase inclut :
+- Création du document avec tous les champs requis
+- Indexation sur le `msg_type` pour optimiser les futures requêtes
+- Validation de la structure et de la cohérence des données
+- Mise à jour des métadonnées système
+
+### 4.6 Phase d'Activation (Mise en Production)
+
+Une fois stocké, l'artifact devient immédiatement disponible pour le traitement des lignes suivantes du même `msg_type`. Le système applique automatiquement le nouveau mapping pour transformer les données brutes en informations structurées.
+
+## 5. L'Anonymisation comme Bonne Pratique IA
+
+L'anonymisation des données financières représente une **exigence éthique et réglementaire fondamentale** dans notre architecture IA. Cette approche s'inscrit dans une démarche responsable qui vise à protéger la confidentialité des données tout en permettant l'innovation algorithmique.
+
+### 5.1 Principes Directeurs
+
+- **Minimisation des données** : Seules les données structurelles sont transmises à l'IA
+- **Privacy by Design** : L'anonymisation est intégrée dès la conception du système
+- **Réversibilité contrôlée** : Les placeholders permettent l'analyse sans révéler les valeurs originales
+- **Traçabilité** : Chaque opération d'anonymisation est loggée et auditable
+
+### 5.2 Avantages Techniques
+
+L'anonymisation apporte des bénéfices multiples au système :
+- **Réduction du bruit** : Élimination des variations spécifiques aux valeurs
+- **Généralisation** : Focus sur la structure plutôt que sur les données spécifiques
+- **Sécurité** : Protection contre les fuites de données sensibles
+- **Conformité** : Respect des régulations RGPD et financières
+
+### 5.3 Impact sur la Performance IA
+
+Contrairement à une intuition commune, l'anonymisation améliore la performance de l'IA en :
+- Concentrant l'attention du modèle sur les patterns structurels
+- Réduisant les biais liés aux valeurs spécifiques
+- Facilitant la généralisation à de nouveaux msg-types
+- Optimisant les ressources computationnelles
+
+## 6. Préparation des Étapes Futures
+
+### 6.1 Fondation pour les Embeddings Sémantiques
+
+La collection `feed` constitue la base idéale pour la génération d'embeddings de haute qualité. Chaque artifact sémantique peut être transformé en représentation vectorielle qui capture :
+- La structure des champs et leurs relations
+- La signification contextuelle de chaque position
+- Les patterns syntaxiques et sémantiques
+- Les similitudes entre différents msg-types
+
+Ces embeddings permettront au système de :
+- Détecter automatiquement les similarités entre msg-types
+- Proposer des mappings pour de nouveaux types de messages
+- Optimiser les requêtes par similarité sémantique
+- Supporter les opérations de clustering et de classification
+
+### 6.2 Support au RAG (Retrieval-Augmented Generation)
+
+Les artifacts stockés dans la collection `feed` serviront de **base de connaissances structurée** pour les futures implémentations RAG. Le système pourra :
+- Récupérer rapidement les mappings pertinents pour un msg-type donné
+- Fournir un contexte riche aux agents IA pour leurs décisions
+- Supporter les requêtes complexes sur la signification des données
+- Faciliter la génération de réponses contextuelles et précises
+
+### 6.3 Infrastructure pour les Agents Intelligents
+
+La collection `feed` est conçue comme l'épine dorsale de notre architecture multi-agents :
+- **Agent de Parsing** : Utilise les mappings pour structurer les données brutes
+- **Agent d'Analyse** : S'appuie sur la sémantique pour interpréter les transactions
+- **Agent de Prédiction** : Exploite les patterns pour anticiper les mouvements
+- **Agent de Reporting** : Génère des rapports basés sur la signification des champs
+
+### 6.4 Évolutivité et Scalabilité
+
+L'architecture de la collection `feed` supporte naturellement l'évolution du système :
+- **Extensibilité** : Ajout facile de nouveaux champs et métadonnées
+- **Performance** : Indexation optimisée pour les requêtes à haute fréquence
+- **Résilience** : Gestion des conflits et des mises à jour concurrentes
+- **Monitoring** : Métriques intégrées pour la supervision système
+
+## 7. Conclusion
+
+La collection MongoDB `feed` représente bien plus qu'un simple stockage de données ; elle constitue le **cœur sémantique** de notre système de trading intelligent. En transformant automatiquement les données brutes en connaissances structurées, elle établit les fondations nécessaires à la construction d'une IA véritablement compréhensive et autonome dans le domaine financier.
+
+L'approche centrée sur les artifacts sémantiques, combinée à une anonymisation responsable et une architecture évolutive, positionne notre système comme une solution moderne, éthique et performante pour l'analyse automatisée des marchés financiers.

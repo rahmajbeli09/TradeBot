@@ -5,7 +5,7 @@ import com.example.chatbotnasoft.dto.ParsedFeedGroup;
 import com.example.chatbotnasoft.dto.RawFeedLine;
 import com.example.chatbotnasoft.entity.Feed;
 import com.example.chatbotnasoft.repository.FeedRepository;
-import com.example.chatbotnasoft.service.AnonizationService;
+import com.example.chatbotnasoft.service.AnonymizationService;
 import com.example.chatbotnasoft.service.FeedDetectionService;
 import com.example.chatbotnasoft.service.FeedParsingService;
 import org.junit.jupiter.api.BeforeEach;
