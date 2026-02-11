@@ -1,0 +1,185 @@
+# Plan d’implémentation RAG (Retrieval-Augmented Generation)
+
+## Objectif
+Configurer et tester la génération augmentée par récupération pour le chatbot, en utilisant Qdrant + MongoDB + Gemini.
+
+---
+
+## 1) Architecture RAG
+
+```
+Question utilisateur
+        ↓
+Embedding (Gemini embedding-001)
+        ↓
+Recherche vectorielle (Qdrant)
+        ↓
+Récupération mappings (MongoDB)
+        ↓
+Prompt contextualisé + LLM (Gemini)
+        ↓
+Réponse finale contextualisée
+```
+
+---
+
+## 2) Flux de traitement
+
+### Étape 1 : Réception question
+- Endpoint `POST /api/rag/ask`
+- Body : `{ "question": "Que signifie le Champ 4 du msgType 16 ?", "limit": 3 }`
+
+### Étape 2 : Embedding
+- Utiliser `GeminiEmbeddingService.embed(question)`
+- Vecteur 3072 dimensions
+
+### Étape 3 : Recherche Qdrant
+- `QdrantClient.search(vector, limit)`
+- Retourne les points les plus pertinents avec scores
+
+### Étape 4 : Construction contexte
+- Pour chaque point : récupérer le mapping complet depuis MongoDB
+- Construire un contexte structuré :
+```
+Contexte disponible :
+MsgType 16 (score: 0.77) :
+- Champ 1 : Type de message
+- Champ 2 : Statut de l'opération
+- Champ 3 : Identifiant unique de l'opération
+- Champ 4 : Montant de l'opération
+- Champ 5 : Référence externe
+
+MsgType A3 (score: 0.73) :
+...
+```
+
+### Étape 5 : Prompt LLM
+```
+En te basant sur le contexte ci-dessous, réponds à la question utilisateur de manière précise et concise :
+
+Question : {question}
+
+Contexte :
+{contexte}
+
+Réponse attendue : une seule phrase claire basée sur les informations du contexte.
+```
+
+### Étape 6 : Génération réponse
+- Appel Gemini LLM avec le prompt contextualisé
+- Retour de la réponse finale
+
+---
+
+## 3) Services à implémenter
+
+### RagService (nouveau)
+- `ask(question, limit)` : orchestre tout le flux
+- `buildContext(searchResults)` : construit le contexte lisible
+- `generatePrompt(question, context)` : crée le prompt pour le LLM
+
+### GeminiLlmService (nouveau)
+- `generate(prompt)` : appelle Gemini LLM pour générer du texte
+- Configuration : modèle, température, max tokens
+
+### RagController (nouveau)
+- Endpoint `/api/rag/ask`
+- Validation entrée
+- Appel `RagService.ask()`
+- Retour réponse structurée
+
+---
+
+## 4) Format de réponse
+
+```json
+{
+  "question": "Que signifie le Champ 4 du msgType 16 ?",
+  "answer": "Le Champ 4 du msgType 16 représente le Montant de l'opération.",
+  "context": {
+    "retrieved_mappings": [
+      {
+        "msgType": "16",
+        "score": 0.769,
+        "mapping": { "Champ 4": "Montant de l'opération", ... }
+      }
+    ],
+    "total_retrieved": 3
+  },
+  "metadata": {
+    "embedding_time_ms": 45,
+    "search_time_ms": 12,
+    "llm_time_ms": 230,
+    "total_time_ms": 287
+  }
+}
+```
+
+---
+
+## 5) Tests à réaliser
+
+### Questions directes
+- "Que signifie le Champ 4 du msgType 16 ?"
+- "Explique le champ montant de l'opération du msgType 53"
+- "Quel est l'identifiant unique pour le msgType A3 ?"
+
+### Questions sémantiques
+- "Je veux comprendre le champ montant"
+- "Information sur l'identifiant unique"
+- "Code de sous-type ou statut"
+
+### Questions limites
+- "Champ inexistant"
+- "msgType inconnu"
+- "Question vide"
+
+---
+
+## 6) Validation des réponses
+
+### Critères de qualité
+- **Pertinence** : la réponse utilise bien le contexte récupéré
+- **Exactitude** : l’information correspond au mapping correct
+- **Conciseness** : réponse directe sans superflu
+- **Cohérence** : même format pour des questions similaires
+
+### Métriques
+- **Temps de réponse total** (embedding + recherche + LLM)
+- **Score moyen des mappings utilisés**
+- **Taux de réponses correctes** (validation manuelle)
+
+---
+
+## 7) Documentation des résultats
+
+Pour chaque test :
+- Question posée
+- Mappings récupérés (avec scores)
+- Prompt envoyé au LLM
+- Réponse générée
+- Validation (OK/NOK) avec commentaire
+- Temps de réponse détaillé
+
+---
+
+## 8) Contraintes respectées
+
+- Utilisation uniquement des données validées (status=Validé, isActive=true)
+- Maintien de l’anonymisation (pas d’exposition de valeurs réelles)
+- Pas d’avancée vers l’étape suivante (tests finaux / UI)
+- Documentation complète de toutes les étapes
+
+---
+
+## 9) Configuration requise
+
+### Gemini LLM
+- Clé API existante (réutiliser celle de l’embedding)
+- Modèle : `gemini-pro` ou `gemini-1.5-flash`
+- Température : 0.3 (réponses plus déterministes)
+- Max tokens : 150 (réponses courtes)
+
+### Qdrant
+- Collection existante déjà configurée
+- Recherche avec `limit` paramétrable

@@ -1,0 +1,135 @@
+# Structure du projet ChatbotNaSoft
+
+## Vue d’ensemble
+Projet Spring Boot (Java) qui gère :
+- La détection et l’anonymisation de messages bancaires (FEED)
+- La gestion des mappings (correspondances entre champs et significations)
+- L’indexation sémantique des mappings dans Qdrant via Gemini embeddings
+- Des API REST pour piloter tout le pipeline
+
+---
+
+## Arborescence (simplifiée)
+
+```
+src/main/java/com/example/chatbotnasoft/
+├── config/
+│   ├── GeminiProperties.java
+│   ├── QdrantProperties.java
+│   ├── LLMConfiguration.java
+│   └── SecurityConfig.java
+├── controller/
+│   ├── FeedMappingController.java
+│   ├── DatasetController.java
+│   ├── EmbeddingIndexationController.java
+│   └── ...
+├── entity/
+│   ├── Feed.java
+│   ├── FeedMapping.java
+│   ├── FeedMappingHistory.java
+│   └── MappingStatus.java
+├── repository/
+│   ├── FeedRepository.java
+│   ├── FeedMappingRepository.java
+│   └── FeedMappingHistoryRepository.java
+├── service/
+│   ├── FeedDetectionService.java
+│   ├── FeedMappingService.java
+│   ├── DatasetPreparationService.java
+│   ├── GeminiEmbeddingService.java
+│   ├── QdrantClient.java
+│   ├── EmbeddingIndexationService.java
+│   └── ...
+├── dto/
+│   ├── DatasetDocument.java
+│   └── DatasetMetadata.java
+└── ChatbotNaSoftApplication.java
+
+src/main/resources/
+├── application.yml
+├── application.properties
+└── static/
+```
+
+---
+
+## Rôle de chaque fichier / fonction
+
+### Config
+- **GeminiProperties.java** : Propriétés de configuration Gemini (apiKey, modèle, embeddingModel, baseUrl, timeout, retries, temperature, maxTokens)
+- **QdrantProperties.java** : Propriétés Qdrant (url, collection, distance, batchSize)
+- **LLMConfiguration.java** : Active les @ConfigurationProperties, définit RestTemplate et ObjectMapper
+- **SecurityConfig.java** : Sécurité Spring (Basic Auth, endpoints publics, endpoints protégés)
+
+### Controllers
+- **FeedMappingController.java** : API REST pour CRUD mappings, récupérer statut, historique par msgType
+- **DatasetController.java** : Export des mappings validés en JSON/CSV (pour embeddings/RAG)
+- **EmbeddingIndexationController.java** : Lancer l’indexation embeddings, vérifier le contenu Qdrant
+
+### Entities
+- **Feed.java** : Entité MongoDB pour les messages bruts (FEED)
+- **FeedMapping.java** : Mapping msgType → {champ:signification}, avec version, status, isActive, dates
+- **FeedMappingHistory.java** : Archive des anciennes versions des mappings (historisation)
+- **MappingStatus.java** : Enum VALIDE / À VÉRIFIER / INCOMPLET
+
+### Repositories
+- **FeedRepository.java** : Accès MongoDB aux messages bruts
+- **FeedMappingRepository.java** : Accès MongoDB aux mappings (requêtes par status, isActive, etc.)
+- **FeedMappingHistoryRepository.java** : Accès MongoDB à l’historique des mappings
+
+### Services
+- **FeedDetectionService.java** : Détecte si un msgType est connu (basé sur mappings validés)
+- **FeedMappingService.java** : Logique de versioning, archivage, mise à jour, statut, historique
+- **DatasetPreparationService.java** : Prépare un dataset NLP à partir des mappings validés (texte normalisé + métadonnées)
+- **GeminiEmbeddingService.java** : Appelle Gemini embedContent pour transformer un texte en vecteur (embedding)
+- **QdrantClient.java** : Client REST Qdrant (créer collection, upsert points, scroll)
+- **EmbeddingIndexationService.java** : Pipeline complet : récupérer mappings validés, générer embeddings, upserter dans Qdrant
+
+### DTOs
+- **DatasetDocument.java** : Document pour export dataset (id, msgType, texte, métadonnées)
+- **DatasetMetadata.java** : Métadonnées d’un document (status, version, msgType, category, agent)
+
+---
+
+## Relations entre les fichiers
+
+### Flux de données principal
+1. **FeedDetectionService** utilise **FeedMappingRepository** → savoir si un msgType est connu
+2. **FeedMappingService** utilise **FeedMappingRepository** et **FeedMappingHistoryRepository** → gérer les versions et l’archivage
+3. **DatasetPreparationService** utilise **FeedMappingRepository** → extraire les mappings validés pour le dataset
+4. **EmbeddingIndexationService** utilise :
+   - **FeedMappingRepository** → récupérer les mappings validés
+   - **GeminiEmbeddingService** → générer les embeddings
+   - **QdrantClient** → stocker dans Qdrant
+5. **Controllers** exposent les services via REST
+
+### Configuration
+- **LLMConfiguration** injecte **GeminiProperties** et **QdrantProperties** dans les services
+- **SecurityConfig** protège les endpoints, mais autorise certains (dataset, llm, etc.)
+
+### Base de données
+- **MongoDB** : stocke Feed, FeedMapping, FeedMappingHistory
+- **Qdrant** : stocke les embeddings (vecteurs + payload)
+
+---
+
+## Utilité / Objectif métier
+
+- **Détection** : savoir si un message bancaire (FEED) correspond à un type connu
+- **Anonymisation** : remplacer les valeurs sensibles par des placeholders
+- **Mapping** : expliquer à quoi correspond chaque champ d’un message (ex. Champ 1 = Nom client)
+- **Versioning** : garder un historique des modifications, immutabilité des mappings validés
+- **Dataset** : fournir un jeu de données propre pour NLP / RAG
+- **Embeddings + Qdrant** : permettre la recherche sémantique (questions en langage naturel → mappings pertinents)
+- **API REST** : piloter tout le pipeline depuis une UI ou un autre système
+
+---
+
+## Points clés d’architecture
+
+- **Spring Data MongoDB** pour l’accès aux documents
+- **Spring Security** avec Basic Auth
+- **RestTemplate + ObjectMapper** pour appeler Gemini et Qdrant
+- **UUID déterministe** pour garantir l’idempotence des upserts Qdrant
+- **Configuration externalisée** (application.yml / properties)
+- **DTOs** pour découpler les modèles d’export des entités métier

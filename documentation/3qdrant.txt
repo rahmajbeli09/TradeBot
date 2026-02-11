@@ -1,0 +1,120 @@
+# Indexation sémantique des mappings dans Qdrant
+
+## Objectif
+Permettre la recherche sémantique (RAG) sur les mappings FeedMapping :
+- Transformer chaque mapping en texte lisible
+- Générer un embedding (vecteur) avec Gemini
+- Stocker dans Qdrant avec métadonnées
+- Interroger par similarité pour répondre à des questions en langage naturel
+
+---
+
+## Définitions clés
+
+### Embedding
+Représentation numérique d’un texte sous forme de vecteur. Deux textes similaires auront des vecteurs proches dans l’espace vectoriel.
+
+### Qdrant
+Base de données vectorielle spécialisée dans le stockage et la recherche rapide de vecteurs (similarité cosine, euclidienne, etc.).
+
+### Payload
+Métadonnées associées à chaque vecteur dans Qdrant (ici : msgType, fieldCount, version, status, createdAt, updatedAt).
+
+### Upsert
+Opération qui insère un point ou le remplace si un point avec le même id existe déjà. Garantit l’absence de doublons.
+
+---
+
+## Procédure d’indexation
+
+### 1) Extraction des mappings à indexer
+- Critères : `status = VALIDÉ` ET `isActive = true`
+- Source : MongoDB, collection `feed`
+- Résultat typique : 4 mappings (msgType A3, 03, 16, 53)
+
+### 2) Construction du texte pour chaque mapping
+Format normalisé :
+```
+Message de type <msgType> contenant <fieldCount> champs :
+Champ 1 : <signification>
+Champ 2 : <signification>
+...
+```
+Exemple :
+```
+Message de type A3 contenant 4 champs :
+Champ 1 : Nom du client
+Champ 2 : Montant de la transaction
+Champ 3 : Date de l'opération
+Champ 4 : Code agence
+```
+
+### 3) Génération de l’embedding
+- Service : GeminiEmbeddingService
+- Modèle : `gemini-embedding-001`
+- API : `embedContent`
+- Dimension du vecteur : 3072
+- Sortie : `List<Double>` de 3072 valeurs
+
+### 4) Stockage dans Qdrant
+- Collection : `feed_embeddings`
+- Création automatique si inexistante (vectorSize = 3072, distance = Cosine)
+- Point Qdrant :
+  - `id` : UUID déterministe basé sur l’id MongoDB (garantie l’idempotence)
+  - `vector` : embedding 3072 dimensions
+  - `payload` : métadonnées (msgType, fieldCount, version, status, dates)
+
+### 5) Upsert par batch
+- Taille de batch configurable (default 32)
+- Si la collection existe avec une mauvaise dimension, l’upsert échoue → il faut recréer la collection
+
+---
+
+## Résultats obtenus
+
+### Points stockés
+4 points dans Qdrant, un par msgType (A3, 03, 16, 53).
+
+Exemple de payload :
+```json
+{
+  "msgType": "A3",
+  "fieldCount": 4,
+  "version": 2,
+  "status": "Validé",
+  "createdAt": "2026-02-10T12:24:13.801",
+  "updatedAt": "2026-02-10T12:25:22.208"
+}
+```
+
+### Vérification
+- Endpoint `GET /api/embeddings/qdrant/scroll?limit=5` renvoie les points stockés.
+- Re-indexation ne crée pas de doublons (grâce à l’UUID déterministe).
+
+---
+
+## Utilisation future (RAG)
+
+### Recherche sémantique
+1. Utilisateur tape une question en langage naturel.
+2. Gemini transforme la question en vecteur.
+3. Qdrant cherche les vecteurs les plus proches (similarité cosine).
+4. Le système retourne les mappings les plus pertinents.
+5. Le chatbot peut expliquer les champs correspondants.
+
+### Exemple de requête
+- “Je veux le nom du client et le montant”
+→ Retourne le mapping de type A3 (Champ 1 = Nom du client, Champ 2 = Montant)
+
+---
+
+## Résumé technique
+
+- **MongoDB** : source de vérité pour les mappings et leur cycle de vie
+- **Gemini** : modèle d’embedding `gemini-embedding-001` (3072 dimensions)
+- **Qdrant** : stockage vectoriel, recherche par similarité cosine
+- **Pipeline** : extraction → texte → embedding → upsert
+- **Idempotence** : UUID déterministe basé sur l’id MongoDB
+- **Scalabilité** : batch upsert, configuration externalisée
+
+L’indexation est maintenant prête pour alimenter un chatbot RAG.

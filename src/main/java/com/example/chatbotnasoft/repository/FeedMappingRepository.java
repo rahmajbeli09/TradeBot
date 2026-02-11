@@ -16,6 +16,8 @@ public interface FeedMappingRepository extends MongoRepository<FeedMapping, Stri
      */
     Optional<FeedMapping> findByMsgType(String msgType);
 
+    FeedMapping findByMsgTypeAndIsActive(String msgType, boolean isActive);
+
     List<FeedMapping> findByStatusIn(List<MappingStatus> statuses);
 
     List<FeedMapping> findByStatusAndIsActive(MappingStatus status, Boolean isActive);

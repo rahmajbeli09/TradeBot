@@ -4,6 +4,8 @@ import com.example.chatbotnasoft.config.QdrantProperties;
 import com.example.chatbotnasoft.entity.FeedMapping;
 import com.example.chatbotnasoft.entity.MappingStatus;
 import com.example.chatbotnasoft.repository.FeedMappingRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,8 @@ public class EmbeddingIndexationService {
     private final GeminiEmbeddingService geminiEmbeddingService;
     private final QdrantClient qdrantClient;
     private final QdrantProperties qdrantProperties;
+    private final NlpAnonymizationService nlpAnonymizationService;
+    private final ObjectMapper objectMapper;
 
     public IndexationResult indexAllValidatedActive() {
         List<FeedMapping> mappings = feedMappingRepository.findByStatusAndIsActive(MappingStatus.VALIDE, true);
@@ -44,8 +48,9 @@ public class EmbeddingIndexationService {
 
         for (FeedMapping mapping : mappings) {
             try {
-                String text = buildEmbeddingText(mapping);
-                List<Double> vector = geminiEmbeddingService.embed(text);
+                String rawText = buildEmbeddingText(mapping);
+                String anonymizedText = nlpAnonymizationService.anonymize(rawText);
+                List<Double> vector = geminiEmbeddingService.embed(anonymizedText);
 
                 if (vector == null || vector.isEmpty()) {
                     failed++;
@@ -163,4 +168,50 @@ public class EmbeddingIndexationService {
     }
 
     public record IndexationResult(int total, int indexed, int skipped, int failed, Integer vectorSize) {}
+
+    public List<Map<String, Object>> searchByQuery(String query, int limit) {
+        log.info("🔎 QUERY: {}", query);
+        List<Double> queryVector = geminiEmbeddingService.embed(query);
+        log.info("🔎 QUERY VECTOR SIZE: {}", queryVector != null ? queryVector.size() : "null");
+        if (queryVector == null || queryVector.isEmpty()) {
+            return List.of();
+        }
+
+        String searchResult = qdrantClient.search(queryVector, limit);
+        log.info("🔎 QDRANT RAW RESULT: {}", searchResult);
+        if (searchResult == null || searchResult.isBlank()) {
+            return List.of();
+        }
+
+        return extractMappingsFromSearchResult(searchResult);
+    }
+
+    private List<Map<String, Object>> extractMappingsFromSearchResult(String searchResult) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try {
+            JsonNode root = objectMapper.readTree(searchResult);
+            JsonNode points = root.path("result");
+            log.info("🔎 POINTS RAW: {}", points.toString());
+            for (JsonNode point : points) {
+                JsonNode payload = point.path("payload");
+                log.info("🔎 PAYLOAD RAW: {}", payload.toString());
+                String msgType = payload.path("msgType").asText();
+                log.info("🔎 MSGTYPE EXTRACTED: '{}'", msgType);
+                if (msgType.isBlank()) continue;
+
+                FeedMapping mapping = feedMappingRepository.findByMsgTypeAndIsActive(msgType, true);
+                if (mapping != null) {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("msgType", mapping.getMsgType());
+                    result.put("mapping", mapping.getMapping());
+                    result.put("version", mapping.getVersion());
+                    result.put("status", mapping.getStatus() != null ? mapping.getStatus().getLabel() : null);
+                    results.add(result);
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Erreur extraction mappings depuis Qdrant search: {}", e.getMessage());
+        }
+        return results;
+    }
 }

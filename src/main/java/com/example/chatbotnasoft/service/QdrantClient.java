@@ -117,6 +117,31 @@ public class QdrantClient {
         }
     }
 
+    public String search(List<Double> queryVector, int limit) {
+        String endpoint = qdrantProperties.getUrl() + "/collections/" + qdrantProperties.getCollection() + "/points/search";
+
+        Map<String, Object> request = Map.of(
+                "vector", queryVector,
+                "limit", limit,
+                "with_payload", true,
+                "with_vector", false
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(endpoint, new HttpEntity<>(request, headers), String.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                return null;
+            }
+            return response.getBody();
+        } catch (Exception e) {
+            log.error("❌ Qdrant: échec search: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public String scrollRaw(int limit) {
         String endpoint = qdrantProperties.getUrl() + "/collections/" + qdrantProperties.getCollection() + "/points/scroll";
 

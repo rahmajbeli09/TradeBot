@@ -1,0 +1,177 @@
+# Plan de préparation et validation des prompts du chatbot
+
+## Objectif
+Préparer et valider tous les prompts pour que le LLM fournisse des réponses correctes, cohérentes et compréhensibles basées sur les mappings MongoDB/Qdrant.
+
+---
+
+## 1) Types de requêtes utilisateur identifiées
+
+### Requêtes directes sur un champ spécifique
+- "Explique le champ Montant de l’opération du msgType 53"
+- "Que signifie le Champ 4 du msgType 16 ?"
+- "Quel est l’identifiant unique de la transaction pour le msgType 03 ?"
+
+### Requêtes sur l’ensemble d’un msgType
+- "Donne tous les champs du msgType A3"
+- "Description complète du msgType 16"
+- "Quels sont les champs du msgType 53 ?"
+
+### Requêtes sur l’anonymisation
+- "Quels champs sont anonymisés pour le msgType 16 ?"
+- "Explique l’anonymisation du msgType A3"
+- "Comment sont traités les identifiants dans le msgType 03 ?"
+
+### Requêtes sémantiques / ambiguës
+- "Je veux comprendre le champ montant"
+- "Information sur l’identifiant unique"
+- "Code de sous-type ou statut"
+
+### Requêtes de comparaison
+- "Différence entre msgType 16 et 53"
+- "Compare les champs identifiant entre A3 et 03"
+
+---
+
+## 2) Prompts initiaux par type de requête
+
+### Prompt 1 : Champ spécifique
+```
+En te basant sur les mappings suivants, explique la signification du champ '{champ}' pour le msgType '{msgType}' en termes clairs et concis :
+
+{mapping}
+
+Réponse attendue : une phrase simple expliquant ce que représente ce champ dans le contexte du msgType.
+```
+
+### Prompt 2 : Ensemble msgType
+```
+En te basant sur le mapping complet ci-dessous, présente tous les champs du msgType '{msgType}' avec leur signification :
+
+{mapping}
+
+Réponse attendue : liste claire des champs numérotés avec leur signification.
+```
+
+### Prompt 3 : Anonymisation
+```
+En te basant sur le mapping du msgType '{msgType}', identifie les champs qui sont généralement anonymisés (identifiants, références, codes) et explique comment :
+
+{mapping}
+
+Réponse attendue : liste des champs concernés et type d’anonymisation appliquée.
+```
+
+### Prompt 4 : Requête sémantique
+```
+En te basant sur les mappings suivants, réponds à la question utilisateur de manière précise :
+
+Question : {question}
+Mappings disponibles :
+{mappings}
+
+Réponse attendue : réponse directe et concise basée sur les mappings fournis.
+```
+
+### Prompt 5 : Comparaison
+```
+En te basant sur les mappings de deux msgType, compare les champs demandés :
+
+MsgType 1 : {msgType1}
+{mapping1}
+
+MsgType 2 : {msgType2}
+{mapping2}
+
+Critère de comparaison : {critere}
+
+Réponse attendue : comparaison claire des différences et similarités.
+```
+
+---
+
+## 3) Plan de test des prompts
+
+### Échantillon de données
+- msgType 16 : 5 champs (Type, Statut, ID, Montant, Référence)
+- msgType A3 : 4 champs (Type, Sous-type, ID, Horodatage)
+- msgType 03 : 11 champs (complet)
+- msgType 53 : 7 champs (Type, Sous-type, ID, Quantité, Prix, ID secondaire, Horodatage)
+
+### Tests par type
+1. **Champ spécifique** : tester sur Champ 4 de chaque msgType
+2. **Ensemble msgType** : tester la liste complète pour chaque msgType
+3. **Anonymisation** : identifier les champs ID, référence, codes
+4. **Sémantique** : questions comme "montant", "identifiant", "statut"
+5. **Comparaison** : msgType 16 vs 53 sur les champs montant/identifiant
+
+---
+
+## 4) Critères de validation
+
+### Qualité de la réponse
+- **Exactitude** : la réponse correspond bien au mapping
+- **Complétude** : toutes les informations pertinentes sont incluses
+- **Clarté** : formulation compréhensible pour un utilisateur métier
+- **Conciseness** : pas de verbiage inutile
+
+### Cohérence
+- Même format de réponse pour des requêtes similaires
+- Terminologie cohérente (ex: "identifiant unique" vs "ID")
+- Respect du contexte financier/opérationnel
+
+---
+
+## 5) Processus d’ajustement
+
+### Si réponse incorrecte
+- Ajouter des exemples concrets dans le prompt
+- Préciser le format attendu
+- Simplifier la question
+
+### Si réponse trop longue
+- Ajouter "en une phrase" ou "maximum 2 lignes"
+- Supprimer les instructions vagues
+
+### Si réponse ambiguë
+- Préciser le contexte (financier, opérationnel)
+- Demander explicitement de citer le nom exact du champ
+
+---
+
+## 6) Documentation des versions
+
+### Format de suivi
+```
+Prompt v1.0 (initial) :
+[contenu du prompt]
+
+Test 1 : "Explique le champ Montant de l’opération du msgType 53"
+Réponse v1.0 : [réponse obtenue]
+Problème : [description]
+
+Prompt v1.1 (ajusté) :
+[contenu modifié]
+
+Test 1 : même requête
+Réponse v1.1 : [nouvelle réponse]
+Validation : OK / À améliorer
+```
+
+---
+
+## 7) Prompts finalisés attendus
+
+Une fois validés, les prompts seront prêts pour :
+- Intégration dans le chatbot
+- Utilisation avec les résultats RAG de Qdrant
+- Génération de réponses utilisateur finales
+
+---
+
+## 8) Contraintes respectées
+
+- Aucune modification des données MongoDB/Qdrant
+- Utilisation uniquement des mappings validés
+- Documentation complète des versions
+- Pas d’avancée vers l’étape RAG/LLM intégré
