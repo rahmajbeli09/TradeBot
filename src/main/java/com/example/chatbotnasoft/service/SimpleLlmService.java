@@ -16,6 +16,16 @@ public class SimpleLlmService {
         log.info("🔍 QUESTION: {}", question);
         log.info("📝 CONTEXT: {}", context);
         
+        // 1. Validation des questions ambiguës
+        if (isQuestionAmbigue(question)) {
+            return "Désolé, la question est trop ambiguë pour fournir une réponse fiable.";
+        }
+        
+        // 2. Validation des questions comparatives
+        if (isQuestionComparative(question)) {
+            return "Désolé, les questions comparatives nécessitent plusieurs msgTypes spécifiques pour être traitées.";
+        }
+        
         // Extraire le msgType et le champ de la question
         String msgType = extractMsgType(question);
         String champRecherche = extractChampRecherche(question);
@@ -23,7 +33,7 @@ public class SimpleLlmService {
         log.info("📍 MSGTYPE EXTRACTION: '{}'", msgType);
         log.info("🏷️ CHAMP RECHERCHE: '{}'", champRecherche);
         
-        // Analyser le contexte pour trouver la réponse
+        // 3. Analyser le contexte pour trouver la réponse
         Map<String, String> mapping = extractMappingFromContext(context, msgType);
         
         log.info("🗺️ MAPPING EXTRACTED: {}", mapping);
@@ -32,52 +42,129 @@ public class SimpleLlmService {
             return "Désolé, je n'ai pas trouvé d'information pour cette question.";
         }
         
-        // Chercher une correspondance sémantique
-        String champTrouve = findChampCorrespondant(mapping, champRecherche);
-        
-        log.info("🎯 CHAMP TROUVÉ: '{}' pour recherche '{}'", champTrouve, champRecherche);
-        
-        if (champTrouve != null) {
-            return String.format("Le %s du msgType %s représente : %s", 
-                    champRecherche, msgType, mapping.get(champTrouve));
+        // 4. Validation intra-document (champ précis)
+        if (champRecherche != null) {
+            String champTrouve = findChampCorrespondant(mapping, champRecherche);
+            log.info("🎯 CHAMP TROUVÉ: '{}' pour recherche '{}'", champTrouve, champRecherche);
+            
+            if (champTrouve != null) {
+                // Répondre UNIQUEMENT au champ demandé
+                return String.format("Le %s du msgType %s représente : %s", 
+                        champRecherche, msgType, mapping.get(champTrouve));
+            } else {
+                // Champ n'existe pas dans le mapping
+                return "Information non disponible pour ce champ.";
+            }
         }
         
-        // Si pas de champ spécifique, donner une vue d'ensemble
+        // 5. Si pas de champ spécifique, donner une vue d'ensemble
         return String.format("Pour le msgType %s : %s", msgType, formatMapping(mapping));
     }
     
     private String findChampCorrespondant(Map<String, String> mapping, String champRecherche) {
-        // Correspondances exactes
+        log.info("🔍 Looking for '{}' in mapping keys: {}", champRecherche, mapping.keySet());
+        
+        // 1. Correspondance exacte
         for (String champ : mapping.keySet()) {
-            if (champ.toLowerCase().contains(champRecherche.toLowerCase()) ||
-                champRecherche.toLowerCase().contains(champ.toLowerCase())) {
+            if (champ.equalsIgnoreCase(champRecherche)) {
+                log.info("✅ Exact match found: '{}'", champ);
                 return champ;
             }
         }
         
-        // Correspondances sémantiques pour "montant"
-        if (champRecherche.toLowerCase().contains("montant")) {
-            for (Map.Entry<String, String> entry : mapping.entrySet()) {
-                String valeur = entry.getValue().toLowerCase();
-                if (valeur.contains("prix") || valeur.contains("taux") || 
-                    valeur.contains("coût") || valeur.contains("valeur")) {
-                    return entry.getKey();
-                }
+        // 2. Correspondance partielle (contient)
+        for (String champ : mapping.keySet()) {
+            if (champ.toLowerCase().contains(champRecherche.toLowerCase()) ||
+                champRecherche.toLowerCase().contains(champ.toLowerCase())) {
+                log.info("✅ Partial match found: '{}' contains '{}'", champ, champRecherche);
+                return champ;
             }
         }
         
-        // Correspondances sémantiques pour "identifiant"
+        // 3. Correspondance sémantique pour "identifiant"
         if (champRecherche.toLowerCase().contains("identifiant")) {
             for (Map.Entry<String, String> entry : mapping.entrySet()) {
                 String valeur = entry.getValue().toLowerCase();
                 if (valeur.contains("id") || valeur.contains("référence") || 
-                    valeur.contains("unique")) {
+                    valeur.contains("unique") || valeur.contains("identifiant")) {
+                    log.info("✅ Semantic match for identifiant: '{}' = '{}'", entry.getKey(), entry.getValue());
                     return entry.getKey();
                 }
             }
         }
         
+        // 4. Correspondance sémantique pour "montant"
+        if (champRecherche.toLowerCase().contains("montant")) {
+            for (Map.Entry<String, String> entry : mapping.entrySet()) {
+                String valeur = entry.getValue().toLowerCase();
+                if (valeur.contains("prix") || valeur.contains("taux") || 
+                    valeur.contains("coût") || valeur.contains("valeur") || valeur.contains("montant")) {
+                    log.info("✅ Semantic match for montant: '{}' = '{}'", entry.getKey(), entry.getValue());
+                    return entry.getKey();
+                }
+            }
+        }
+        
+        // 5. Correspondance par numéro de champ
+        if (champRecherche.toLowerCase().startsWith("champ")) {
+            String numero = champRecherche.replaceAll("[^0-9]", "");
+            if (!numero.isEmpty()) {
+                String champNumerique = "Champ " + numero;
+                if (mapping.containsKey(champNumerique)) {
+                    log.info("✅ Numeric match found: '{}'", champNumerique);
+                    return champNumerique;
+                }
+            }
+        }
+        
+        log.info("❌ No match found for '{}'", champRecherche);
         return null;
+    }
+    
+    private boolean isQuestionAmbigue(String question) {
+        String lowerQuestion = question.toLowerCase();
+        
+        // Questions vraiment trop générales (sans msgType ET sans champ)
+        if (lowerQuestion.contains("information sur") || 
+            lowerQuestion.contains("détaille") ||
+            lowerQuestion.contains("tout") ||
+            lowerQuestion.contains("général") ||
+            lowerQuestion.contains("global")) {
+            
+            // Accepter si msgType ou champ est mentionné
+            if (lowerQuestion.contains("msgtype") || containsChampKeyword(lowerQuestion)) {
+                return false; // Pas ambiguë
+            }
+            return true; // Ambiguë
+        }
+        
+        // Questions sans aucun identifiant
+        if (!lowerQuestion.contains("msgtype") && 
+            !containsChampKeyword(lowerQuestion)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    private boolean isQuestionComparative(String question) {
+        String lowerQuestion = question.toLowerCase();
+        
+        // Mots-clés comparatifs
+        return lowerQuestion.contains("différence") ||
+               lowerQuestion.contains("comparaison") ||
+               lowerQuestion.contains("versus") ||
+               lowerQuestion.contains("contre") ||
+               lowerQuestion.contains("plutôt que");
+    }
+    
+    private boolean containsChampKeyword(String question) {
+        return question.contains("champ") ||
+               question.contains("identifiant") ||
+               question.contains("montant") ||
+               question.contains("type") ||
+               question.contains("statut") ||
+               question.contains("quantité");
     }
     
     private String extractMsgType(String question) {
@@ -87,33 +174,52 @@ public class SimpleLlmService {
     }
     
     private String extractChampRecherche(String question) {
-        log.info("🔍 Extracting champ from question: '{}'", question);
+        log.info(" Extracting champ from question: '{}'", question);
         
-        // Chercher des termes sémantiques complets en premier
         String lowerQuestion = question.toLowerCase();
-        if (lowerQuestion.contains("montant de l'opération")) {
-            log.info("✅ Found 'montant de l'opération'");
-            return "Montant de l'opération";
-        }
-        if (lowerQuestion.contains("montant")) {
-            log.info("✅ Found 'montant'");
-            return "Montant de l'opération";
-        }
-        if (lowerQuestion.contains("identifiant")) {
-            log.info("✅ Found 'identifiant'");
+        
+        // Recherche exacte des termes complets en premier
+        if (lowerQuestion.contains("identifiant unique")) {
+            log.info(" Found 'identifiant unique'");
             return "Identifiant unique";
         }
-        if (lowerQuestion.contains("type")) {
-            log.info("✅ Found 'type'");
+        if (lowerQuestion.contains("montant de l'opération")) {
+            log.info(" Found 'montant de l'opération'");
+            return "Montant de l'opération";
+        }
+        if (lowerQuestion.contains("type de message")) {
+            log.info(" Found 'type de message'");
             return "Type de message";
         }
         
-        // Chercher "champ X" seulement si rien trouvé avant
-        Pattern pattern = Pattern.compile("champ\\s+([^\\s]+)", Pattern.CASE_INSENSITIVE);
+        // Recherche des mots-clés simples
+        if (lowerQuestion.contains("montant")) {
+            log.info(" Found 'montant'");
+            return "Montant de l'opération";
+        }
+        if (lowerQuestion.contains("identifiant")) {
+            log.info(" Found 'identifiant'");
+            return "Identifiant unique";
+        }
+        if (lowerQuestion.contains("type")) {
+            log.info(" Found 'type'");
+            return "Type de message";
+        }
+        if (lowerQuestion.contains("statut")) {
+            log.info(" Found 'statut'");
+            return "Statut";
+        }
+        if (lowerQuestion.contains("quantité")) {
+            log.info(" Found 'quantité'");
+            return "Quantité";
+        }
+        
+        // Fallback: chercher "champ X"
+        Pattern pattern = Pattern.compile("champ\\s+(\\w+)", Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(question);
         if (matcher.find()) {
             String champ = "Champ " + matcher.group(1);
-            log.info("⚠️ Fallback to regex: '{}'", champ);
+            log.info(" Fallback to regex: '{}'", champ);
             return champ;
         }
         
@@ -136,9 +242,10 @@ public class SimpleLlmService {
         
         for (String line : lines) {
             line = line.trim();
-            if (line.startsWith("MsgType")) {
-                // Extraire le msgType - format: "MsgType 53 (score: 0,79) :"
-                Pattern pattern = Pattern.compile("MsgType\\s+(\\w+)\\s+\\(score:");
+            
+            // Format: "Contexte principal (msgType 53) :"
+            if (line.contains("msgType")) {
+                Pattern pattern = Pattern.compile("msgType\\s+(\\w+)");
                 Matcher matcher = pattern.matcher(line);
                 if (matcher.find()) {
                     currentMsgType = matcher.group(1);
@@ -146,7 +253,7 @@ public class SimpleLlmService {
                     
                     if (currentMsgType.equals(msgType)) {
                         foundTarget = true;
-                        log.info("� Found target msgType {}, collecting fields...", msgType);
+                        log.info("✅ Found target msgType {}, collecting fields...", msgType);
                     } else {
                         foundTarget = false;
                     }

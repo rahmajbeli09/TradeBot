@@ -22,6 +22,7 @@ src/main/java/com/example/chatbotnasoft/
 │   ├── FeedMappingController.java
 │   ├── DatasetController.java
 │   ├── EmbeddingIndexationController.java
+│   ├── RagController.java
 │   └── ...
 ├── entity/
 │   ├── Feed.java
@@ -39,10 +40,17 @@ src/main/java/com/example/chatbotnasoft/
 │   ├── GeminiEmbeddingService.java
 │   ├── QdrantClient.java
 │   ├── EmbeddingIndexationService.java
+│   ├── RagService.java
+│   ├── SimpleLlmService.java
+│   ├── GeminiLlmService.java
+│   ├── HuggingFaceLlmService.java
+│   ├── OpenAiLlmService.java
 │   └── ...
 ├── dto/
 │   ├── DatasetDocument.java
-│   └── DatasetMetadata.java
+│   ├── DatasetMetadata.java
+│   ├── RagResponse.java
+│   └── ...
 └── ChatbotNaSoftApplication.java
 
 src/main/resources/
@@ -65,6 +73,7 @@ src/main/resources/
 - **FeedMappingController.java** : API REST pour CRUD mappings, récupérer statut, historique par msgType
 - **DatasetController.java** : Export des mappings validés en JSON/CSV (pour embeddings/RAG)
 - **EmbeddingIndexationController.java** : Lancer l’indexation embeddings, vérifier le contenu Qdrant
+- **RagController.java** : Endpoint RAG pour questions en langage naturel et réponses contextualisées
 
 ### Entities
 - **Feed.java** : Entité MongoDB pour les messages bruts (FEED)
@@ -82,12 +91,18 @@ src/main/resources/
 - **FeedMappingService.java** : Logique de versioning, archivage, mise à jour, statut, historique
 - **DatasetPreparationService.java** : Prépare un dataset NLP à partir des mappings validés (texte normalisé + métadonnées)
 - **GeminiEmbeddingService.java** : Appelle Gemini embedContent pour transformer un texte en vecteur (embedding)
-- **QdrantClient.java** : Client REST Qdrant (créer collection, upsert points, scroll)
+- **QdrantClient.java** : Client REST Qdrant (créer collection, upsert points, scroll, search)
 - **EmbeddingIndexationService.java** : Pipeline complet : récupérer mappings validés, générer embeddings, upserter dans Qdrant
+- **RagService.java** : Orchestrateur RAG : question → embedding → Qdrant → contexte → LLM → réponse
+- **SimpleLlmService.java** : LLM factuel sans API externe (parsing sémantique, réponses basées sur mappings)
+- **GeminiLlmService.java** : Service LLM utilisant l'API Gemini pour générer des réponses
+- **HuggingFaceLlmService.java** : Service LLM utilisant l'API HuggingFace (modèles divers)
+- **OpenAiLlmService.java** : Service LLM utilisant l'API OpenAI (alternative)
 
 ### DTOs
 - **DatasetDocument.java** : Document pour export dataset (id, msgType, texte, métadonnées)
 - **DatasetMetadata.java** : Métadonnées d’un document (status, version, msgType, category, agent)
+- **RagResponse.java** : Réponse RAG structurée (question, answer, contexts, metadata, success/error)
 
 ---
 
@@ -101,7 +116,12 @@ src/main/resources/
    - **FeedMappingRepository** → récupérer les mappings validés
    - **GeminiEmbeddingService** → générer les embeddings
    - **QdrantClient** → stocker dans Qdrant
-5. **Controllers** exposent les services via REST
+5. **RagService** utilise :
+   - **GeminiEmbeddingService** → embed la question utilisateur
+   - **QdrantClient** → rechercher les contextes pertinents
+   - **FeedMappingRepository** → récupérer les mappings complets
+   - **SimpleLlmService** (ou autres LLM) → générer la réponse contextualisée
+6. **Controllers** exposent les services via REST
 
 ### Configuration
 - **LLMConfiguration** injecte **GeminiProperties** et **QdrantProperties** dans les services
@@ -121,6 +141,7 @@ src/main/resources/
 - **Versioning** : garder un historique des modifications, immutabilité des mappings validés
 - **Dataset** : fournir un jeu de données propre pour NLP / RAG
 - **Embeddings + Qdrant** : permettre la recherche sémantique (questions en langage naturel → mappings pertinents)
+- **RAG (Retrieval-Augmented Generation)** : répondre aux questions utilisateurs en utilisant le contexte pertinent des mappings
 - **API REST** : piloter tout le pipeline depuis une UI ou un autre système
 
 ---
@@ -133,3 +154,7 @@ src/main/resources/
 - **UUID déterministe** pour garantir l’idempotence des upserts Qdrant
 - **Configuration externalisée** (application.yml / properties)
 - **DTOs** pour découpler les modèles d’export des entités métier
+- **RAG Pipeline** : Question → Embedding → Qdrant → Contexte → LLM → Réponse
+- **Multiple LLM Support** : SimpleLLM (factuel), Gemini, HuggingFace, OpenAI
+- **Semantic Search** : Recherche par similarité vectorielle dans Qdrant
+- **Parsing Intelligent** : Extraction sémantique des champs et correspondances
